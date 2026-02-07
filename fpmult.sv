@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module fpmult #(parameter int P = 8, parameter int Q = 8) (
     input  logic rst_in_N,           // synchronous active-low reset
     input  logic clk_in,             // clock
@@ -12,14 +14,58 @@ module fpmult #(parameter int P = 8, parameter int Q = 8) (
 );
 
 // Input handling -> (multcontrol->fracmult) & (exponent handler / adder)
-// Exponent adding -> x-exp + y-exp -  (127 for 8 bit exponent width)
-// Sign handling -> x-sign ^ y-sign
+logic[P+Q:0] x_fix;
+logic[P+Q:0] y_fix;
 
-// Calls / module setup for multcontrol
+// Exponent adding -> x-exp + y-exp - (127 for 8 bit exponent width)
+logic[7:0] exponent;
+
+// Sign handling -> x-sign ^ y-sign
+logic sign;
+
+logic[15:0] product;
+logic done;
+logic adx;
+
+multcontrol mc (
+    .a(x_fix[15:8]),
+    .b(y_fix[15:8]),
+    .clk_in(clk_in),
+    .rst_n(rst_in_N),
+    .adx(adx),
+    .p(product),
+    .mdone(done),
+    .ready(ready_out)
+);
 
 // Output assembling {sign, exponent, fraction};
-
-
+always @(posedge clk_in) begin
+    if (start_in) begin
+        // $display("START_IN %d %d %d", x_in[14:7], y_in[14:7], x_in[14:7] + y_in[14:7] -2 * 127);
+        $display("START_IN - SET");
+        x_fix <= {x_in[P+Q-1], {1'b1, x_in[6:0]}, x_in[14:7]};
+        y_fix <= {y_in[P+Q-1], {1'b1, y_in[6:0]}, y_in[14:7]};
+        exponent <= x_in[14:7] + y_in[14:7] - 127;
+        sign <= x_in[P+Q-1] ^ y_in[P+Q-1];
+        adx <= 1;
+    end
+    if (done) begin 
+        //$display("EXPONENT CHECK, %d", exponent-127);
+        if (product[15]) begin
+             // @TODO check exponent overflow
+            logic[7:0] tmp_exp;
+            tmp_exp = exponent + 1;
+            p_out <= {sign, tmp_exp, product[14:8]};
+        end
+        else begin
+            p_out <= {sign, exponent, product[13:7]};
+        end
+        // $display("OUTPUT (non-truncated): 0b%b, OUTPUT (truncated): 0b%b", product, product[14:8]);
+        oor_out <= 0;
+        valid_out <= 1;
+        adx <= 0;
+    end
+end
 endmodule
 
 
@@ -30,12 +76,14 @@ module multcontrol (
     input  logic rst_n,                 // Reset-low signal (INITIAL STATE)
     input  logic adx,                   // Start mult flag 
     output logic [15:0] p,              // Product
-    output logic mdone                  // Mult complete flag
+    output logic mdone,                 // Mult complete flag
+    output logic ready                  // Ready to receive new input
 );
 
 // state == 0: IDLE/Waiting
-// state == 1: Computing/Working
-logic state[1:0];
+// state == 1: LOAD/Initializing
+// state == 2: Computing/Working
+logic[1:0] state;
 
 // Flag to load registers in fracmult module
 logic load;
@@ -50,20 +98,23 @@ fracmult fm (
     .load(load),
     .computing(computing),
     .rst_n(rst_n),
-    .p(p)
+    .p(p),
     .done(mdone)
 );
 
 // Loop call fracmult module
 always @(posedge clk_in) begin
+    $display(" MULT-CONTROL ADX UPDATE: %b", adx);
     case (state)
         0: begin // IDLE
+            ready <= 1;
             if (adx) begin
                 load <= 1;
                 state <= 1;
             end
         end
         1: begin // LOAD
+            ready <= 0;
             load <= 0;
             computing <= 1;
             state <= 2;
@@ -95,26 +146,28 @@ logic [7:0] b_reg;
 logic [16:0] acc_reg;
 integer counter;
 
-assign p = acc_reg;
+assign p = acc_reg[15:0];
 
 always @(posedge clk_in) begin
-    if (!rst_n) begin
+    // $display("---- CLK_IN %b, %b", rst_n, load);
+    if (load) begin
         counter <= 8;
-        done <= 0;
-        acc_reg <= 0;
-        b_reg <= 0;
-    end
-    else if (load) begin
         b_reg <= b;
-        acc_reg[7:0] <= a;
+        acc_reg <= {9'b0, a};
+        done <= 0;
+        // $display("ld here: %d", done);
     end
-    else if (computing) begin
+    else if (computing & !done) begin
+        // $display("here: %d", done);
         if (acc_reg[0]) begin
-            acc_reg[16:8] <= acc_reg[16:8] + b_reg; 
+            acc_reg <= {1'b0, acc_reg[16:8] + b_reg, acc_reg[7:1]}; 
         end
-        acc_reg <= acc_reg >> 1;
+        else begin
+            acc_reg <= acc_reg >> 1;
+        end
+        done <= (counter == 1);
         counter <= counter - 1;
-        done <= (counter == 0);
+        // $display("AFTER STEP: acc_reg: 0b%b, b_reg: 0b%b", acc_reg, b_reg);
     end
 end 
 
