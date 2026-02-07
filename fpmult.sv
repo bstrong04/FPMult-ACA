@@ -10,3 +10,33 @@ module fpmult #(parameter int P = 8, parameter int Q = 8) (
     output logic valid_out,          // the outputs are valid
     output logic ready_out           // the FPM is ready to receive new inputs
 );
+
+
+
+endmodule
+
+
+module multcontrol (
+    input  logic adx                   // Start mult flag 
+    output logic mdone                 // Mult complete flag
+);
+
+// Loop call fracmult module
+
+always_comb begin : blockName
+    
+end
+
+endmodule
+
+
+module fracmult (
+    input  logic [7:0]  b              // Multiplicand
+    input  logic [16:0] acc            // Accumulator
+    input  logic addsh                 // Add-Shift flag
+    input  logic clk_in                // clock
+    output logic [15:0] p              // Product
+    output logic m                     // new LSB of multiplier
+);
+
+endmodule
