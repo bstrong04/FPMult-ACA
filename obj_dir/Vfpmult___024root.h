@@ -15,6 +15,7 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
   public:
 
     // DESIGN SPECIFIC STATE
+    CData/*0:0*/ fpmult_tb__DOT__rst_in_N;
     CData/*0:0*/ fpmult_tb__DOT__clk_in;
     CData/*0:0*/ fpmult_tb__DOT__start_in;
     CData/*3:0*/ fpmult_tb__DOT__oor_out;
@@ -26,11 +27,11 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__sign;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__done;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__adx;
-    CData/*7:0*/ fpmult_tb__DOT__dut__DOT__unnamedblk1__DOT__tmp_exp;
     CData/*1:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__state;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__load;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__computing;
     CData/*7:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__b_reg;
+    CData/*0:0*/ __Vdly__fpmult_tb__DOT__dut__DOT__done;
     CData/*0:0*/ __Vtrigprevexpr___TOP__fpmult_tb__DOT__clk_in__0;
     SData/*15:0*/ fpmult_tb__DOT__x_in;
     SData/*15:0*/ fpmult_tb__DOT__y_in;
@@ -42,6 +43,8 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
     IData/*16:0*/ fpmult_tb__DOT__dut__DOT__y_fix;
     IData/*16:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__acc_reg;
     IData/*31:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__counter;
+    IData/*16:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__unnamedblk1__DOT__next_acc;
+    IData/*16:0*/ __Vdly__fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__acc_reg;
     IData/*31:0*/ __VactIterCount;
     QData/*53:0*/ fpmult_tb__DOT__line;
     VlUnpacked<QData/*63:0*/, 1> __VactTriggered;

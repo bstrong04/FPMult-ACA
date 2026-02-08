@@ -31,6 +31,7 @@ VM_CLASSES_FAST += \
 
 # Generated module classes, non-fast-path, compile with low/medium optimization
 VM_CLASSES_SLOW += \
+  Vfpmult__ConstPool__0__Slow \
   Vfpmult___024root__Slow \
   Vfpmult___024root__0__Slow \
   Vfpmult___024unit__Slow \

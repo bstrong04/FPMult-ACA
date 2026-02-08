@@ -39,34 +39,46 @@ multcontrol mc (
 );
 
 // Output assembling {sign, exponent, fraction};
-always @(posedge clk_in) begin
-    if (start_in) begin
-        // $display("START_IN %d %d %d", x_in[14:7], y_in[14:7], x_in[14:7] + y_in[14:7] -2 * 127);
-        $display("START_IN - SET");
-        x_fix <= {x_in[P+Q-1], {1'b1, x_in[6:0]}, x_in[14:7]};
-        y_fix <= {y_in[P+Q-1], {1'b1, y_in[6:0]}, y_in[14:7]};
-        exponent <= x_in[14:7] + y_in[14:7] - 127;
-        sign <= x_in[P+Q-1] ^ y_in[P+Q-1];
-        adx <= 1;
-    end
-    if (done) begin 
-        //$display("EXPONENT CHECK, %d", exponent-127);
-        if (product[15]) begin
-             // @TODO check exponent overflow
-            logic[7:0] tmp_exp;
-            tmp_exp = exponent + 1;
-            p_out <= {sign, tmp_exp, product[14:8]};
-        end
-        else begin
-            p_out <= {sign, exponent, product[13:7]};
-        end
-        // $display("OUTPUT (non-truncated): 0b%b, OUTPUT (truncated): 0b%b", product, product[14:8]);
-        oor_out <= 0;
-        valid_out <= 1;
+always @(edge clk_in) begin
+    if (!rst_in_N) begin
+        x_fix <= 0;
+        y_fix <= 0;
+        exponent <= 0;
+        sign <= 0;
         adx <= 0;
+    end
+    else begin
+        if (start_in) begin
+            x_fix <= {x_in[P+Q-1], {1'b1, x_in[6:0]}, x_in[14:7]};
+            y_fix <= {y_in[P+Q-1], {1'b1, y_in[6:0]}, y_in[14:7]};
+            exponent <= x_in[14:7] + y_in[14:7] - 127;
+            sign <= x_in[P+Q-1] ^ y_in[P+Q-1];
+            adx <= 1;
+            valid_out <= 0;
+        end
+        else if (done) begin
+            // might have to wait to do this part until we round?
+            // have done flag sent to rounding / normalization module
+            // that module does the rounding and returns a different flag when done
+            // come back and potentially normalize again based on input?
+            // also have some code that adjusts for 0 input. Potentially in rounding?
+            if (product[15]) begin
+                // @TODO check exponent over/underflow (throw error if detected)
+                exponent = exponent + 1;
+                p_out = {sign, exponent, product[14:8]};
+            end
+            else begin
+                p_out <= {sign, exponent, product[13:7]};
+            end
+            oor_out <= 0;
+            valid_out <= 1;
+            adx <= 0;
+        end
     end
 end
 endmodule
+
+// @TODO - add rounding module that also handles first normalization and perhaps shifting based on normal vs. subnormal
 
 
 module multcontrol (
@@ -104,28 +116,42 @@ fracmult fm (
 
 // Loop call fracmult module
 always @(posedge clk_in) begin
-    $display(" MULT-CONTROL ADX UPDATE: %b", adx);
-    case (state)
-        0: begin // IDLE
-            ready <= 1;
-            if (adx) begin
-                load <= 1;
-                state <= 1;
+    // $display(" MULT-CONTROL ADX UPDATE: %b", adx);
+    if (!rst_n) begin
+        // $display("RESETTING");
+        state <= 0;
+        load <= 0;
+        computing <= 0;
+        ready <= 1;
+    end
+    else begin
+        case (state)
+            0: begin // IDLE
+                // $display("IDLE");
+                ready <= 1;
+                if (adx) begin
+                    // $display("BEGIN LOAD");
+                    load <= 1;
+                    state <= 1;
+                end
             end
-        end
-        1: begin // LOAD
-            ready <= 0;
-            load <= 0;
-            computing <= 1;
-            state <= 2;
-        end
-        2: begin // COMPUTATION
-            if (mdone) begin
-                computing <= 0;
-                state <= 0;
+            1: begin // LOAD
+                // $display("LOAD");
+                ready <= 0;
+                load <= 0;
+                computing <= 1;
+                state <= 2;
             end
-        end
-    endcase
+            2: begin // COMPUTATION
+                // $display("COMPUTING");
+                if (mdone) begin
+                    // $display("COMPLETE");
+                    computing <= 0;
+                    state <= 0;
+                end
+            end
+        endcase
+    end
 end
 
 endmodule
@@ -149,25 +175,26 @@ integer counter;
 assign p = acc_reg[15:0];
 
 always @(posedge clk_in) begin
-    // $display("---- CLK_IN %b, %b", rst_n, load);
     if (load) begin
         counter <= 8;
         b_reg <= b;
         acc_reg <= {9'b0, a};
         done <= 0;
-        // $display("ld here: %d", done);
     end
-    else if (computing & !done) begin
+    else if (computing && !done) begin
         // $display("here: %d", done);
+        logic [16:0] next_acc;
+        next_acc = acc_reg;
+
         if (acc_reg[0]) begin
-            acc_reg <= {1'b0, acc_reg[16:8] + b_reg, acc_reg[7:1]}; 
+            next_acc = acc_reg + {1'b0, b_reg, 8'b0};
         end
-        else begin
-            acc_reg <= acc_reg >> 1;
-        end
-        done <= (counter == 1);
+        acc_reg <= next_acc >> 1;
         counter <= counter - 1;
-        // $display("AFTER STEP: acc_reg: 0b%b, b_reg: 0b%b", acc_reg, b_reg);
+        done <= (counter == 1);
+    end
+    else if (done) begin
+        done <= 0;
     end
 end 
 

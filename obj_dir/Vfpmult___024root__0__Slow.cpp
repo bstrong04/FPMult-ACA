@@ -35,13 +35,16 @@ VL_ATTR_COLD void Vfpmult___024root___dump_triggers__act(const VlUnpacked<QData/
         VL_DBG_MSGS("         No '" + tag + "' region triggers active\n");
     }
     if ((1U & (IData)(triggers[0U]))) {
-        VL_DBG_MSGS("         '" + tag + "' region trigger index 0 is active: @(posedge fpmult_tb.clk_in)\n");
+        VL_DBG_MSGS("         '" + tag + "' region trigger index 0 is active: @(edge fpmult_tb.clk_in)\n");
     }
     if ((1U & (IData)((triggers[0U] >> 1U)))) {
-        VL_DBG_MSGS("         '" + tag + "' region trigger index 1 is active: @([true] __VdlySched.awaitingCurrentTime())\n");
+        VL_DBG_MSGS("         '" + tag + "' region trigger index 1 is active: @(posedge fpmult_tb.clk_in)\n");
     }
     if ((1U & (IData)((triggers[0U] >> 2U)))) {
-        VL_DBG_MSGS("         '" + tag + "' region trigger index 2 is active: @(negedge fpmult_tb.clk_in)\n");
+        VL_DBG_MSGS("         '" + tag + "' region trigger index 2 is active: @([true] __VdlySched.awaitingCurrentTime())\n");
+    }
+    if ((1U & (IData)((triggers[0U] >> 3U)))) {
+        VL_DBG_MSGS("         '" + tag + "' region trigger index 3 is active: @(negedge fpmult_tb.clk_in)\n");
     }
 }
 #endif  // VL_DEBUG
@@ -52,6 +55,7 @@ VL_ATTR_COLD void Vfpmult___024root___ctor_var_reset(Vfpmult___024root* vlSelf) 
     auto& vlSelfRef = std::ref(*vlSelf).get();
     // Body
     const uint64_t __VscopeHash = VL_MURMUR64_HASH(vlSelf->vlNamep);
+    vlSelf->fpmult_tb__DOT__rst_in_N = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 17961262217266213541ull);
     vlSelf->fpmult_tb__DOT__clk_in = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 4544485005244276523ull);
     vlSelf->fpmult_tb__DOT__x_in = VL_SCOPED_RAND_RESET_I(16, __VscopeHash, 17693384569394971522ull);
     vlSelf->fpmult_tb__DOT__y_in = VL_SCOPED_RAND_RESET_I(16, __VscopeHash, 10391658975131524709ull);
@@ -72,13 +76,15 @@ VL_ATTR_COLD void Vfpmult___024root___ctor_var_reset(Vfpmult___024root* vlSelf) 
     vlSelf->fpmult_tb__DOT__dut__DOT__sign = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 10968207904817172986ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__done = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 4879575782082583729ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__adx = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 7111686251467320203ull);
-    vlSelf->fpmult_tb__DOT__dut__DOT__unnamedblk1__DOT__tmp_exp = VL_SCOPED_RAND_RESET_I(8, __VscopeHash, 10936343072275005599ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__state = VL_SCOPED_RAND_RESET_I(2, __VscopeHash, 2249520231380538984ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__load = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 6478933812037076822ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__computing = VL_SCOPED_RAND_RESET_I(1, __VscopeHash, 6427045768455520320ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__b_reg = VL_SCOPED_RAND_RESET_I(8, __VscopeHash, 13120710305844214986ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__acc_reg = VL_SCOPED_RAND_RESET_I(17, __VscopeHash, 3022506784587766133ull);
     vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__counter = VL_SCOPED_RAND_RESET_I(32, __VscopeHash, 2553637299794462532ull);
+    vlSelf->fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__unnamedblk1__DOT__next_acc = VL_SCOPED_RAND_RESET_I(17, __VscopeHash, 7991397265895147870ull);
+    vlSelf->__Vdly__fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__acc_reg = 0;
+    vlSelf->__Vdly__fpmult_tb__DOT__dut__DOT__done = 0;
     for (int __Vi0 = 0; __Vi0 < 1; ++__Vi0) {
         vlSelf->__VactTriggered[__Vi0] = 0;
     }

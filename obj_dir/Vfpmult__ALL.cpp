@@ -3,6 +3,7 @@
 #include "Vfpmult.cpp"
 #include "Vfpmult___024root__0.cpp"
 #include "Vfpmult__main.cpp"
+#include "Vfpmult__ConstPool__0__Slow.cpp"
 #include "Vfpmult___024root__Slow.cpp"
 #include "Vfpmult___024root__0__Slow.cpp"
 #include "Vfpmult___024unit__Slow.cpp"
