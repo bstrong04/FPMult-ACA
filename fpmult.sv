@@ -18,12 +18,18 @@ logic[P+Q:0] x_fix;
 logic[P+Q:0] y_fix;
 
 // Exponent adding -> x-exp + y-exp - (127 for 8 bit exponent width)
-logic[7:0] exponent;
+logic [8:0] exponent;
+logic [7:0] fix_exp;
+logic x_hidden;
+logic y_hidden;
 
 // Sign handling -> x-sign ^ y-sign
 logic sign;
 
-logic[15:0] product;
+logic [15:0] product;
+logic [15:0] fix_prod;
+
+logic [3:0] oor_found;
 logic done;
 logic adx;
 
@@ -38,8 +44,17 @@ multcontrol mc (
     .ready(ready_out)
 );
 
+oor_input oor (
+    .x(x_in),
+    .y(y_in),
+    .clk_in(clk_in),
+    .start_in(start_in),
+    .new_prod(fix_prod),
+    .oor_found(oor_found)
+);
+
 // Output assembling {sign, exponent, fraction};
-always @(edge clk_in) begin
+always @(posedge clk_in) begin
     if (!rst_in_N) begin
         x_fix <= 0;
         y_fix <= 0;
@@ -49,9 +64,12 @@ always @(edge clk_in) begin
     end
     else begin
         if (start_in) begin
-            x_fix <= {x_in[P+Q-1], {1'b1, x_in[6:0]}, x_in[14:7]};
-            y_fix <= {y_in[P+Q-1], {1'b1, y_in[6:0]}, y_in[14:7]};
-            exponent <= x_in[14:7] + y_in[14:7] - 127;
+            // All 0 exponent value signifies leading bit == 0.
+            x_hidden = (x_in[14:7] != 0);
+            y_hidden = (y_in[14:7] != 0);
+            x_fix <= {x_in[P+Q-1], {x_hidden, x_in[6:0]}, x_in[14:7]};
+            y_fix <= {y_in[P+Q-1], {y_hidden, y_in[6:0]}, y_in[14:7]};
+            exponent <= x_in[14:7] + y_in[14:7];
             sign <= x_in[P+Q-1] ^ y_in[P+Q-1];
             adx <= 1;
             valid_out <= 0;
@@ -62,23 +80,112 @@ always @(edge clk_in) begin
             // that module does the rounding and returns a different flag when done
             // come back and potentially normalize again based on input?
             // also have some code that adjusts for 0 input. Potentially in rounding?
-            if (product[15]) begin
-                // @TODO check exponent over/underflow (throw error if detected)
-                exponent = exponent + 1;
-                p_out = {sign, exponent, product[14:8]};
+            if (oor_found != '0) begin
+                p_out <= fix_prod;
+                oor_out <= oor_found;
+                valid_out <= 1;
+                adx <= 0;
+            end else begin
+                if (exponent > 381) begin
+                    fix_exp = '1;
+                end else if (exponent < 127) begin
+                    fix_exp = '0;
+                end else begin
+                    fix_exp = exponent[7:0] - 127;
+                end
+                if (product[15]) begin
+                    fix_exp += 1;
+                    p_out <= {sign, fix_exp, product[14:8]};
+                end
+                else begin
+                    p_out <= {sign, fix_exp, product[13:7]};
+                end
+                if (product == '0) begin
+                    if (fix_exp == '0) begin
+                        oor_out[3] <= 1;
+                    end else if (fix_exp == '1) begin
+                        oor_out[2] <= 1;
+                    end
+                end else begin
+                    if (fix_exp == '1) begin
+                        oor_out[1] <= 1;
+                    end else if (fix_exp == '0) begin
+                        oor_out[0] <= 1;
+                    end
+                end
+                valid_out <= 1;
+                adx <= 0;
             end
-            else begin
-                p_out <= {sign, exponent, product[13:7]};
-            end
-            oor_out <= 0;
-            valid_out <= 1;
-            adx <= 0;
         end
     end
 end
 endmodule
 
 // @TODO - add rounding module that also handles first normalization and perhaps shifting based on normal vs. subnormal
+
+module oor_input (
+    input  logic [15:0] x,
+    input  logic [15:0] y,
+    input  logic        clk_in,
+    input  logic        start_in,
+    output logic [15:0] new_prod,
+    output logic [3:0]  oor_found
+);
+
+    logic [7:0] x_exp;
+    logic [7:0] y_exp;
+
+    logic [6:0] x_frac;
+    logic [6:0] y_frac;
+
+    logic       x_sign;
+    logic       y_sign;
+    logic       sign;
+
+    logic x_nan;
+    logic y_nan;
+    logic x_inf;
+    logic y_inf; 
+    logic x_zero;
+    logic y_zero;
+
+    logic in_latched;
+
+    assign x_nan = ((x_exp == '1) && (x_frac != '0));
+    assign y_nan = ((y_exp == '1) && (y_frac != '0));
+    assign x_inf = ((x_exp == '1) && (x_frac == '0));
+    assign y_inf = ((y_exp == '1) && (y_frac == '0));
+    assign x_zero = ((x_exp == '0) && (x_frac == '0));
+    assign y_zero = ((y_exp == '0) && (y_frac == '0));
+
+    assign sign = x_sign ^ y_sign;
+
+    always @(posedge clk_in) begin
+        if (start_in) begin
+            x_frac <= x[6:0];
+            x_exp <= x[14:7];
+            y_frac <= y[6:0];
+            y_exp <= y[14:7];
+            x_sign <= x[15];
+            y_sign <= y[15];
+            in_latched <= 1;
+        end
+        if (in_latched) begin
+            if (x_nan || y_nan) begin
+                new_prod <= {1'b0, 8'hFF, 7'b1};
+                oor_found[1] <= 1;
+            end else if (x_inf || y_inf) begin
+                new_prod <= {sign, 8'hFF, 7'b0};
+                oor_found[2] <= 1;
+            end else if (x_zero || y_zero) begin
+                new_prod <= {sign, 8'h00, 7'b0};
+                oor_found[3] <= 1;
+            end else begin
+                oor_found <= 0;
+            end
+        end
+    end
+endmodule
 
 
 module multcontrol (
