@@ -100,7 +100,6 @@ module fpmult_tb #(parameter int P = 8, parameter int Q = 8) ();
             num_tests++;
             out_is_nan = oor_out[OOR_NAN] && (p_out[P+Q-2:P-1] == '1) && (p_out[P-2:0] != '0);
             if ((p_out != test_p) && !(oor[OOR_NAN] && out_is_nan)) begin
-                $display("expected: 0b%b, actual: 0b%b", oor, oor_out);
                 if (num_displayed < 12) begin
                     $display("ERROR: x_in = %x, y_in = %x, expected %x, got %x", test_x, test_y,
                              test_p, p_out);

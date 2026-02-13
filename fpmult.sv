@@ -19,6 +19,7 @@ logic[P+Q:0] y_fix;
 
 // Exponent adding -> x-exp + y-exp - (127 for 8 bit exponent width)
 logic [8:0] exponent;
+logic [9:0] true_exp;
 logic [7:0] fix_exp;
 logic x_hidden;
 logic y_hidden;
@@ -26,8 +27,12 @@ logic y_hidden;
 // Sign handling -> x-sign ^ y-sign
 logic sign;
 
+// Round mode
+logic[1:0] round_reg;
+
 logic [15:0] product;
 logic [15:0] fix_prod;
+logic [6:0] mantissa_out;
 
 logic [3:0] oor_found;
 logic done;
@@ -53,6 +58,19 @@ oor_input oor (
     .oor_found(oor_found)
 );
 
+
+round rd(
+    .round_in(round_reg),
+    .sign(sign),
+    .exponent(exponent),
+    .x_exp(x_fix[7:0]),
+    .y_exp(y_fix[7:0]),
+    .acc_reg(product),
+    .mantissa_out(mantissa_out),
+    .true_exp(true_exp)
+);
+
+
 // Output assembling {sign, exponent, fraction};
 always @(posedge clk_in) begin
     if (!rst_in_N) begin
@@ -61,6 +79,8 @@ always @(posedge clk_in) begin
         exponent <= 0;
         sign <= 0;
         adx <= 0;
+        valid_out <= 0;
+        round_reg <= 0;
     end
     else begin
         if (start_in) begin
@@ -71,10 +91,12 @@ always @(posedge clk_in) begin
             y_fix <= {y_in[P+Q-1], {y_hidden, y_in[6:0]}, y_in[14:7]};
             exponent <= x_in[14:7] + y_in[14:7];
             sign <= x_in[P+Q-1] ^ y_in[P+Q-1];
+            round_reg <= round_in;
             adx <= 1;
             valid_out <= 0;
         end
         else if (done) begin
+           // $display("True Exponent: %d", true_exp);
             // might have to wait to do this part until we round?
             // have done flag sent to rounding / normalization module
             // that module does the rounding and returns a different flag when done
@@ -86,20 +108,15 @@ always @(posedge clk_in) begin
                 valid_out <= 1;
                 adx <= 0;
             end else begin
-                if (exponent > 381) begin
+                if (true_exp > 381) begin
                     fix_exp = '1;
-                end else if (exponent < 127) begin
+                end else if (true_exp < 127) begin
                     fix_exp = '0;
                 end else begin
-                    fix_exp = exponent[7:0] - 127;
+                    fix_exp = true_exp[7:0] - 127;
                 end
-                if (product[15]) begin
-                    fix_exp += 1;
-                    p_out <= {sign, fix_exp, product[14:8]};
-                end
-                else begin
-                    p_out <= {sign, fix_exp, product[13:7]};
-                end
+                
+                p_out <= {sign, fix_exp, mantissa_out};
                 if (product == '0) begin
                     if (fix_exp == '0) begin
                         oor_out[3] <= 1;
@@ -304,5 +321,166 @@ always @(posedge clk_in) begin
         done <= 0;
     end
 end 
+
+endmodule
+
+
+module round (
+    input   logic [1:0] round_in,     // rounding mode specifier
+    input   logic sign,
+    input   logic [8:0] exponent,
+    input   logic [7:0] x_exp,
+    input   logic [7:0] y_exp,
+    input   logic [15:0] acc_reg,
+    output  logic [6:0] mantissa_out,
+    output  logic [9:0] true_exp
+);
+    // relevant wires for future computation
+        logic signbar;
+        not(signbar, sign);
+
+        logic [1:0] round_in_bar;
+        assign round_in_bar = ~round_in;
+
+        logic r;
+        logic g;
+        logic s;
+        assign r = acc_reg[7];
+        assign g = acc_reg[6];
+        or(s, acc_reg[0],
+                acc_reg[1],
+                acc_reg[2],
+                acc_reg[3],
+                acc_reg[4],
+                acc_reg[5]);
+
+        logic adv, advbar;
+        assign adv = acc_reg[15];
+        not(advbar, adv);
+
+        logic _tmp0, _tmp1;
+        logic nonzerotrail;
+        or(_tmp0, g, s);
+        and(_tmp1, adv, r);
+        or(nonzerotrail, _tmp0, _tmp1);
+
+    // first renormalize
+
+        // @NOTE: we can probably get away with only storing the most significant P bits in sh.
+        // shift acc_reg left by 1 bit (if needed) so that there is a 1 in sh[15]
+        logic [15:0] sh;
+        and(sh[0], adv, acc_reg[0]); // index 0 of sh is only 1 if it is so in acc_reg and acc_reg is not advanced
+        generate
+            for (genvar i = 1; i < 16; i++) begin
+                logic tmp0, tmp1;
+                and(tmp0, adv, acc_reg[i]);
+                and(tmp1, advbar, acc_reg[i-1]);
+                or(sh[i], tmp0, tmp1);
+            end
+        endgenerate
+
+
+    
+    // next we create circuit for rup signal which determines if we round up the mantissa
+        logic rup;
+        // RTN/E
+            /*
+                if (adv) {
+                    round up on r & ( g | s | tiebreak )
+                }
+                else {
+                    round up on g & ( s | tiebreak )
+                }
+            */
+            logic rup_and_RTNE;
+            logic tiebreak;
+            assign tiebreak = sh[8]; // round to even
+            logic advrd; // whether we round in case of adv
+            logic nadvrd; // whether we round in case of NOT adv
+            logic s_tie;
+            or(s_tie, s, tiebreak);
+            logic tmp;
+            or(tmp, g, s_tie);
+            and(advrd, r, tmp, adv);
+            and(nadvrd, g, s_tie, advbar);
+            logic rupRTNE;  // round up (in case of RTN/E)
+            or(rupRTNE, advrd, nadvrd);
+            and(rup_and_RTNE, rupRTNE, round_in_bar[1], round_in_bar[0]);
+        // RTZ
+            // no contribution to this circuit
+        // RD
+            logic rup_and_RD;
+            and(rup_and_RD, nonzerotrail, sign, round_in[1], round_in_bar[0]);
+        // RU
+            logic rup_and_RU;
+            and(rup_and_RU, nonzerotrail, signbar, round_in[1], round_in[0]);
+
+        // final gate for rup signal
+            or(rup, rup_and_RTNE, rup_and_RD, rup_and_RU);
+
+    // round + final renormalize
+        logic [8:0] rdd; // full mantissa in case of round up
+        assign rdd = {1'b0, sh[15:8]} + 1;
+
+        logic [8:0] bm;
+        assign bm = rup ? rdd : {1'b0, sh[15:8]};
+
+        logic nxtadv;
+        assign nxtadv = bm[8];
+
+        logic [9:0] unround_exp;
+        assign unround_exp = {1'b0, exponent} + {9'b0, adv} + {9'b0, nxtadv};
+
+        logic [6:0] normal_mantissa;
+        assign normal_mantissa = nxtadv ? bm[7:1] : bm[6:0];
+    
+    // round overflow
+        logic overflow;
+        assign overflow = (unround_exp > 381);
+        
+        logic fm_on_overflow; // signal for if we round down to finite_max upon overflow
+        // table of how fm is determined by rounding mode
+            // RTN/E: always false
+            // RTZ: always true
+            // RD: when sign positive
+            // RU: when sign negative
+        logic fm_rtz;
+        logic fm_d;
+        logic fm_u;
+        and(fm_rtz, round_in_bar[1], round_in[0]);
+        and(fm_d, signbar, round_in[1], round_in_bar[0]);
+        and(fm_u, sign, round_in[1], round_in[0]);
+        or(fm_on_overflow, fm_rtz, fm_d, fm_u);
+
+        logic is_subnormal_r_sh;
+        logic is_subnormal_l_sh;
+        assign is_subnormal_r_sh = (unround_exp <= 127);
+        assign is_subnormal_l_sh = (unround_exp > 127 && (x_exp == '0 || y_exp == '0));
+
+        // Detect subnormal result
+        logic is_subnormal;
+        assign is_subnormal = (is_subnormal_l_sh || is_subnormal_r_sh);
+
+        logic[1:0] extra_shift;
+        assign extra_shift = (2 * acc_reg[15]) + (acc_reg[14] && !(acc_reg[15]));
+
+        // Amount to right-shift mantissa for subnormal
+        logic [9:0] shift_amt;
+        assign shift_amt = is_subnormal_r_sh ? 127 - unround_exp + {8'b0, extra_shift}: unround_exp - 127;
+
+        // Mantissa after subnormal shift
+        logic [15:0] sub_mantissa_full;
+        assign sub_mantissa_full = is_subnormal_r_sh ? acc_reg >> shift_amt : acc_reg << shift_amt;
+
+        // Detect complete underflow to zero
+        logic underflow_to_zero;
+        assign underflow_to_zero = (shift_amt >= 16);
+
+        logic rd_to_one;
+        assign rd_to_one = (round_in == 2'b0) ? nonzerotrail : (round_in == 2'b01 ? 1'b0 : (round_in == 2'b10 ? (nonzerotrail && sign) : (nonzerotrail && ~sign)));
+
+        // set final output
+        assign mantissa_out = overflow ? (fm_on_overflow ? '1 : '0) : (is_subnormal ? (underflow_to_zero ? (rd_to_one ? 7'b1 : 7'b0) : sub_mantissa_full[13:7]) : normal_mantissa);
+        assign true_exp = overflow  ? (fm_on_overflow ? 381 : 382) : (is_subnormal ? 126 : unround_exp);
 
 endmodule

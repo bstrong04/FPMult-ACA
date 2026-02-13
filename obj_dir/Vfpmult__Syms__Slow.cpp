@@ -11,7 +11,7 @@ Vfpmult__Syms::Vfpmult__Syms(VerilatedContext* contextp, const char* namep, Vfpm
     , TOP{this, namep}
 {
     // Check resources
-    Verilated::stackCheck(256);
+    Verilated::stackCheck(274);
     // Setup sub module instances
     // Configure time unit / time precision
     _vm_contextp__->timeunit(-9);

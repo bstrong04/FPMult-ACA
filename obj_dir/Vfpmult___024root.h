@@ -17,16 +17,19 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
     // DESIGN SPECIFIC STATE
     CData/*0:0*/ fpmult_tb__DOT__rst_in_N;
     CData/*0:0*/ fpmult_tb__DOT__clk_in;
+    CData/*1:0*/ fpmult_tb__DOT__round_in;
     CData/*0:0*/ fpmult_tb__DOT__start_in;
     CData/*3:0*/ fpmult_tb__DOT__oor_out;
     CData/*0:0*/ fpmult_tb__DOT__valid_out;
     CData/*0:0*/ fpmult_tb__DOT__ready_out;
     CData/*3:0*/ fpmult_tb__DOT__oor;
+    CData/*1:0*/ fpmult_tb__DOT__round_mode;
     CData/*0:0*/ fpmult_tb__DOT__out_is_nan;
     CData/*7:0*/ fpmult_tb__DOT__dut__DOT__fix_exp;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__x_hidden;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__y_hidden;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__sign;
+    CData/*1:0*/ fpmult_tb__DOT__dut__DOT__round_reg;
     CData/*3:0*/ fpmult_tb__DOT__dut__DOT__oor_found;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__done;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__adx;
@@ -42,6 +45,11 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__oor__DOT__y_sign;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__oor__DOT__sign;
     CData/*0:0*/ fpmult_tb__DOT__dut__DOT__oor__DOT__in_latched;
+    CData/*0:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__nonzerotrail;
+    CData/*0:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__fm_on_overflow;
+    CData/*0:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__is_subnormal;
+    CData/*0:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT____VdfgRegularize_h82d11941_0_0;
+    CData/*0:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT____VdfgRegularize_h82d11941_0_5;
     CData/*0:0*/ __VstlFirstIteration;
     CData/*0:0*/ __Vtrigprevexpr___TOP__fpmult_tb__DOT__clk_in__0;
     SData/*15:0*/ fpmult_tb__DOT__x_in;
@@ -51,7 +59,11 @@ class alignas(VL_CACHE_LINE_BYTES) Vfpmult___024root final {
     SData/*15:0*/ fpmult_tb__DOT__test_y;
     SData/*15:0*/ fpmult_tb__DOT__test_p;
     SData/*8:0*/ fpmult_tb__DOT__dut__DOT__exponent;
+    SData/*9:0*/ fpmult_tb__DOT__dut__DOT__true_exp;
     SData/*15:0*/ fpmult_tb__DOT__dut__DOT__fix_prod;
+    SData/*8:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__bm;
+    SData/*9:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__unround_exp;
+    SData/*9:0*/ fpmult_tb__DOT__dut__DOT__rd__DOT__shift_amt;
     IData/*16:0*/ fpmult_tb__DOT__dut__DOT__x_fix;
     IData/*16:0*/ fpmult_tb__DOT__dut__DOT__y_fix;
     IData/*16:0*/ fpmult_tb__DOT__dut__DOT__mc__DOT__fm__DOT__acc_reg;
